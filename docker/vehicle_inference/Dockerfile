@@ -17,15 +17,13 @@ RUN pip install --upgrade pip \
     torch \
     torchvision
 
-COPY ./src/custom_interfaces /ros2_ws/src/custom_interfaces
-
+COPY ./src/carla_ros_interfaces /ros2_ws/src/carla_ros_interfaces
 COPY ./src/vehicle_inference /ros2_ws/src/vehicle_inference
 
 RUN . /opt/ros/humble/setup.sh && \
-    colcon build --packages-select  custom_interfaces vehicle_inference
+    colcon build --packages-select  carla_ros_interfaces vehicle_inference && \
+    rm -rf /ros2_ws/build /ros2_ws/log
 
 COPY ./docker/data_collector/entrypoint.sh /entrypoint-vehicle-inference.sh
-
 RUN chmod +x /entrypoint-vehicle-inference.sh
-
 ENTRYPOINT ["/entrypoint-vehicle-inference.sh"]

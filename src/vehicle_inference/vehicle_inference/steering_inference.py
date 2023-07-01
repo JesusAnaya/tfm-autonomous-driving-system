@@ -8,7 +8,7 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
-from custom_interfaces.msg import VehicleControl
+from carla_ros_interfaces.msg import VehicleControl
 from cv_bridge import CvBridge, CvBridgeError
 from .model import NvidiaModel
 from .filters import AverageFilter
