@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  vehicle_inference:
+    build:
+      context: .
+      dockerfile: ./docker/vehicle_inference/Dockerfile
+    image: vehicle-inference-node:latest
+    container_name: vehicle-inference-node
+    command: /bin/sh -c "sleep 15 && ros2 launch vehicle_inference vehicle_inference.launch.py"
+    volumes:
+      - ./models:/models
+    networks:
+      - carla_net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [ '0' ]
+              capabilities: [ gpu ]
+    depends_on:
+      carla_server:
+        condition: service_started
+      custom_carla_bridge:
+        condition: service_started
+
+networks:
+  carla_net:
