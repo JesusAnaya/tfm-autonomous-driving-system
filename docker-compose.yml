@@ -11,7 +11,7 @@ services:
     volumes:
       - ./models:/models
     networks:
-      - tfm_ros_net
+      - shared_network
     deploy:
       resources:
         reservations:
@@ -31,7 +31,9 @@ services:
 #    volumes:
 #      - ./data:/data
 #    networks:
-#      - tfm_ros_net
+#      - shared_network
 
 networks:
-  tfm_ros_net:
+  shared_network:
+    external:
+      name: tfm_ros_net
