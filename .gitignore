@@ -60,3 +60,4 @@ docs/_build/
 
 # os
 .DS_Store
+data/

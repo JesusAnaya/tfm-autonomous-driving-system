@@ -1,11 +1,15 @@
 version: '3.8'
 
 services:
-  vehicle_inference:
+  build_image:
     build:
       context: .
-      dockerfile: ./docker/vehicle_inference/Dockerfile
-    image: vehicle-inference-node:latest
+      dockerfile: ./docker/Dockerfile
+    image: tfm-autonomous-drive-system:latest
+    command: echo "Image built"
+
+  vehicle_inference:
+    image: tfm-autonomous-drive-system:latest
     container_name: vehicle-inference-node
     command: ros2 launch vehicle_inference vehicle_inference.launch.py
     volumes:
@@ -20,18 +24,15 @@ services:
               device_ids: [ '0' ]
               capabilities: [ gpu ]
 
-#  ROS2 data collector container
-#  data_collector:
-#    build:
-#      context: .
-#      dockerfile: ./docker/data_collector/Dockerfile
-#    image: data-collector-node:latest
-#    container_name: data-collector-node
-#    command: /bin/sh -c "sleep 15 && ros2 launch data_collector data_collector.launch.py"
-#    volumes:
-#      - ./data:/data
-#    networks:
-#      - shared_network
+  # ROS2 data collector container
+  data_collector:
+    image: tfm-autonomous-drive-system:latest
+    container_name: data-collector-node
+    command: bash /recording-rosbag.sh
+    volumes:
+      - ./data:/data
+    networks:
+      - shared_network
 
 networks:
   shared_network:

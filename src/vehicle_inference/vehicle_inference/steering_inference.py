@@ -27,10 +27,7 @@ qos = QoSProfile(
 
 def get_device():
     if torch.cuda.is_available():
-        if torch.cuda.device_count() > 1:
-            return "cuda:1"
-        else:
-            return "cuda:0"
+        return "cuda"
     else:
         return "cpu"
 
@@ -64,7 +61,7 @@ class VehicleInferenceNode(Node):
         self.transforms = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Resize((66, 200)),
+                transforms.Resize((66, 200), antialias=True),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406],
                     std=[0.229, 0.224, 0.225]
