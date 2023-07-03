@@ -24,6 +24,13 @@ services:
               device_ids: [ '0' ]
               capabilities: [ gpu ]
 
+  vehicle_control:
+    image: tfm-autonomous-drive-system:latest
+    container_name: vehicle-control-node
+    command: ros2 launch vehicle_control vehicle_control.launch.py
+    networks:
+      - shared_network
+
   # ROS2 data collector container
   data_collector:
     image: tfm-autonomous-drive-system:latest
