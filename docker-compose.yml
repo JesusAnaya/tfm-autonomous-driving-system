@@ -31,15 +31,15 @@ services:
     networks:
       - shared_network
 
-  # ROS2 data collector container
-  data_collector:
-    image: tfm-autonomous-drive-system:latest
-    container_name: data-collector-node
-    command: bash /recording-rosbag.sh
-    volumes:
-      - ./data:/data
-    networks:
-      - shared_network
+#  # ROS2 data collector container
+#  data_collector:
+#    image: tfm-autonomous-drive-system:latest
+#    container_name: data-collector-node
+#    command: bash /recording-rosbag.sh
+#    volumes:
+#      - ./data:/data
+#    networks:
+#      - shared_network
 
 networks:
   shared_network:

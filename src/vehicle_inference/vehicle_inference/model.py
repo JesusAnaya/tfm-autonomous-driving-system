@@ -1,9 +1,26 @@
 import torch.nn as nn
+import torch
+
+DATA_NORM = [0.485, 0.456, 0.406]
+DATA_STD = [0.229, 0.224, 0.225]
+
+
+class Normalize(nn.Module):
+    def __init__(self, mean, std):
+        super().__init__()
+        self.mean = torch.tensor(mean, device='cuda').view(-1, 1, 1)
+        self.std = torch.tensor(std, device='cuda').view(-1, 1, 1)
+
+    def forward(self, x):
+        return (x - self.mean) / self.std
 
 
 class NvidiaModel(nn.Module):
     def __init__(self):
         super().__init__()
+
+        # define normalization layer
+        self.norm_layer = Normalize(DATA_NORM, DATA_STD)
 
         # define layers using nn.Sequential
         self.conv_layers = nn.Sequential(
@@ -61,6 +78,7 @@ class NvidiaModel(nn.Module):
         )
 
     def forward(self, x):
+        x = self.norm_layer(x)
         x = self.conv_layers(x)
         x = self.flat_layers(x)
         return x.squeeze()
