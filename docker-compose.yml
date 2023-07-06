@@ -4,12 +4,15 @@ services:
   build_image:
     build:
       context: .
-      dockerfile: ./docker/Dockerfile
+      dockerfile: ./docker/cpu/Dockerfile
     image: tfm-autonomous-drive-system:latest
     command: echo "Image built"
 
   vehicle_inference:
-    image: tfm-autonomous-drive-system:latest
+    build:
+      context: .
+      dockerfile: ./docker/cuda/Dockerfile
+    image: tfm-autonomous-drive-inference:latest
     container_name: vehicle-inference-node
     command: ros2 launch vehicle_inference vehicle_inference.launch.py
     volumes:
@@ -23,6 +26,9 @@ services:
             - driver: nvidia
               device_ids: [ '0' ]
               capabilities: [ gpu ]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
 
   vehicle_control:
     image: tfm-autonomous-drive-system:latest

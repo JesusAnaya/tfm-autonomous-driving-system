@@ -38,7 +38,7 @@ class VehicleControlNode(Node):
         )
 
         # Placeholder for the current vehicle control state
-        self.filter = ExponentialMovingAverageFilter(alpha=0.1)
+        self.filter = ExponentialMovingAverageFilter(alpha=0.09)
 
         # Placeholder for the current vehicle control state
         self.vehicle_control = VehicleControl()

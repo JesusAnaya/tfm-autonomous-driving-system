@@ -10,9 +10,6 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge, CvBridgeError
 from carla_ros_interfaces.msg import EgoVehicleSteeringControl
-from .model import NvidiaModel
-import torch
-import torchvision.transforms as transforms
 import cv2
 
 # Create a custom QoS profile
@@ -24,14 +21,7 @@ qos = QoSProfile(
 )
 
 
-def get_device():
-    if torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
-
-
-def crop_down(image, top=70, bottom=20):
+def crop_down(image, top=60, bottom=15):
     return image[top:-bottom or None, :, :]
 
 
@@ -41,14 +31,6 @@ class VehicleInferenceNode(Node):
 
         # Action inference
         self.inference_on = False
-
-        self.device = get_device()
-
-        # Load your pretrained PyTorch model here
-        self.model = NvidiaModel()
-        self.model.load_state_dict(torch.load("/models/model.pt", map_location=torch.device(self.device)))
-        self.model.to(self.device)  # Move the model to the device
-        self.model.eval()  # Set the model to evaluation mode
 
         # CV Bridge to convert ROS Image to OpenCV image
         self.bridge = CvBridge()
@@ -87,18 +69,23 @@ class VehicleInferenceNode(Node):
         # resize the image
         frame = cv2.resize(cropped_image, (200, 66))
 
-        # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Perform inference
-        frame_torch = transforms.functional.to_tensor(rgb_frame).to(self.device)
-        batch_t = torch.unsqueeze(frame_torch, 0)
+        # Normalize the image to [0, 1]
+        rgb_frame = (rgb_frame / 255.0).astype('float32')
 
-        with torch.no_grad():
-            output = self.model(batch_t)
+        # Perform inference
+        # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
+        blob = cv2.dnn.blobFromImage(rgb_frame)
+
+        net = cv2.dnn.readNetFromONNX('/models/drive_net_model.onnx')
+        net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+        net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        net.setInput(blob)
+        output = net.forward()
 
         # Assume output is a single value tensor representing the steering angle
-        steer_angle = output.item()
+        steer_angle = float(output[0][0])
 
         # Publish the control command
         ego_vehicle_steering_control = EgoVehicleSteeringControl()
