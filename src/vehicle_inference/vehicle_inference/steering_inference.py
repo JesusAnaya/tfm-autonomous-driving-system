@@ -8,9 +8,9 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
-from cv_bridge import CvBridge, CvBridgeError
 from carla_ros_interfaces.msg import EgoVehicleSteeringControl
-import cv2
+from .inference import InferenceOpenCV
+from .utils import ros_to_opencv
 
 # Create a custom QoS profile
 qos = QoSProfile(
@@ -21,19 +21,13 @@ qos = QoSProfile(
 )
 
 
-def crop_down(image, top=60, bottom=15):
-    return image[top:-bottom or None, :, :]
-
-
 class VehicleInferenceNode(Node):
     def __init__(self):
         super().__init__("vehicle_inference_node")
 
         # Action inference
         self.inference_on = False
-
-        # CV Bridge to convert ROS Image to OpenCV image
-        self.bridge = CvBridge()
+        self.inference = InferenceOpenCV("/models/drive_net_model.onnx")
 
         self.camera_center_subscription = self.create_subscription(
             Image, "/carla_bridge/ego/camera_center", self.image_callback, qos_profile=qos
@@ -47,45 +41,25 @@ class VehicleInferenceNode(Node):
             EgoVehicleSteeringControl, "/av/ego/steer_inference", 10
         )
 
-    def turn_on_inference_callback(self, msg):
+    def turn_on_inference_callback(self, msg: Bool):
         if msg.data == self.inference_on:
             return
 
         self.inference_on = msg.data
 
-    def image_callback(self, msg):
+    def image_callback(self, msg_image: Image):
         if not self.inference_on:
             return
 
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-        except CvBridgeError as e:
-            self.get_logger().warn(f"Failed to convert image: {str(e)}")
-            return
+        # Convert ROS Image to OpenCV image
+        cv_image = ros_to_opencv(msg_image)
 
-        # Crop the image
-        cropped_image = crop_down(cv_image)
+        # Run inference
+        steer_angle = self.inference.run_inference(cv_image)
 
-        # resize the image
-        frame = cv2.resize(cropped_image, (200, 66))
-
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Normalize the image to [0, 1]
-        rgb_frame = (rgb_frame / 255.0).astype('float32')
-
-        # Perform inference
-        # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
-        blob = cv2.dnn.blobFromImage(rgb_frame)
-
-        net = cv2.dnn.readNetFromONNX('/models/drive_net_model.onnx')
-        net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-        net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-        net.setInput(blob)
-        output = net.forward()
-
-        # Assume output is a single value tensor representing the steering angle
-        steer_angle = float(output[0][0])
+        # Print warning if any doing inference
+        if self.inference.get_warning():
+            self.get_logger().warn(self.inference.get_warning())
 
         # Publish the control command
         ego_vehicle_steering_control = EgoVehicleSteeringControl()
