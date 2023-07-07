@@ -12,7 +12,7 @@ from carla_ros_interfaces.msg import (
     VehicleControl,
     VehicleInfo
 )
-from .filters import ExponentialMovingAverageFilter
+from .filters import ExponentialMovingAverageFilter,MedianFilter
 from .pid import PIDController
 
 
@@ -38,7 +38,7 @@ class VehicleControlNode(Node):
         )
 
         # Placeholder for the current vehicle control state
-        self.filter = ExponentialMovingAverageFilter(alpha=0.12)
+        self.filter = MedianFilter(max_size=10)
 
         # Placeholder for the current vehicle control state
         self.vehicle_control = VehicleControl()

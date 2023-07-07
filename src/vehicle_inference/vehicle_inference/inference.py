@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-def crop_down(image, top=70, bottom=0):
+def crop_down(image, top=75, bottom=20):
     return image[top:-bottom or None, :, :]
 
 
@@ -35,6 +35,9 @@ class InferenceOpenCV(object):
 
         # Normalize the image to [0, 1]
         rgb_frame = (frame / 255.0).astype('float32')
+
+        # Apply a bit of blur
+        rgb_frame = cv2.GaussianBlur(rgb_frame, (3, 3), 0)
 
         # Perform inference
         # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
