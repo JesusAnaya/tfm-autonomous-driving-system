@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from carla_ros_interfaces.msg import EgoVehicleSteeringControl
 from .inference import InferenceOpenCV
-from .utils import ros_to_opencv
+from .utils import ros_image_to_opencv_rgb
 
 # Create a custom QoS profile
 qos = QoSProfile(
@@ -52,7 +52,7 @@ class VehicleInferenceNode(Node):
             return
 
         # Convert ROS Image to OpenCV image
-        cv_image = ros_to_opencv(msg_image)
+        cv_image = ros_image_to_opencv_rgb(msg_image)
 
         # Run inference
         steer_angle = self.inference.run_inference(cv_image)

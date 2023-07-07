@@ -28,20 +28,13 @@ class InferenceOpenCV(object):
 
     def run_inference(self, image: np.ndarray) -> float:
         # Crop the image
-        cropped_image = crop_down(image)
-
-        # resize the image
-        frame = cv2.resize(cropped_image, (200, 66))
-
-        # Normalize the image to [0, 1]
-        rgb_frame = (frame / 255.0).astype('float32')
-
-        # Apply a bit of blur
-        rgb_frame = cv2.GaussianBlur(rgb_frame, (3, 3), 0)
+        rgb_frame = crop_down(image)
 
         # Perform inference
         # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
-        blob = cv2.dnn.blobFromImage(rgb_frame)
+        # Size parameter is (width, height)
+        # Change the image from 255 to 1.0
+        blob = cv2.dnn.blobFromImage(rgb_frame, scalefactor=(1.0 / 255.0), size=(200, 66))
 
         # Set the input to the model
         self.model.setInput(blob)

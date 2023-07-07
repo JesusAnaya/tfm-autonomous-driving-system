@@ -2,7 +2,7 @@ import numpy as np
 from sensor_msgs.msg import Image
 
 
-def ros_to_opencv(image_msg: Image) -> np.ndarray:
+def ros_image_to_opencv_rgb(image_msg: Image) -> np.ndarray:
     """
     Converts a ROS Image message to a numpy array (OpenCV image).
 
