@@ -4,21 +4,21 @@ services:
   build_image:
     build:
       context: .
-      dockerfile: ./docker/cpu/Dockerfile
+      dockerfile: ./docker/Dockerfile
     image: tfm-autonomous-drive-system:latest
     command: echo "Image built"
+    privileged: true
+    runtime: nvidia
 
   vehicle_inference:
-    build:
-      context: .
-      dockerfile: ./docker/cuda/Dockerfile
-    image: tfm-autonomous-drive-inference:latest
+    image: tfm-autonomous-drive-system:latest
     container_name: vehicle-inference-node
     command: ros2 launch vehicle_inference vehicle_inference.launch.py
     volumes:
       - ./models:/models
     networks:
       - shared_network
+    privileged: true
     deploy:
       resources:
         reservations:
