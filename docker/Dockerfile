@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
 
 # Download OpenCV and OpenCV contrib
 RUN mkdir /opt/opencv && cd /opt/opencv && \
-    git clone --branch 4.7.0 --depth 1 https://github.com/opencv/opencv.git && \
-    git clone --branch 4.7.0 --depth 1 https://github.com/opencv/opencv_contrib.git
+    git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git && \
+    git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv_contrib.git
 
 # Create build directory and switch to it
 RUN mkdir /opt/opencv/opencv/build && cd /opt/opencv/opencv/build
@@ -30,7 +30,10 @@ RUN cd /opt/opencv/opencv/build && \
     cmake -D CMAKE_BUILD_TYPE=RELEASE \
     -D CMAKE_INSTALL_PREFIX=/usr/local \
     -D WITH_CUDA=ON \
+    -D WITH_CUDNN=ON \
     -D OPENCV_DNN_CUDA=ON \
+    -D ENABLE_FAST_MATH=1 \
+	-D CUDA_FAST_MATH=1 \
     -D CUDA_ARCH_BIN=8.6 \
     -D CUDA_ARCH_PTX="" \
     -D WITH_CUBLAS=ON \
@@ -48,7 +51,7 @@ RUN cd /opt/opencv/opencv/build && \
     ../
 
 # Install OpenCV
-RUN cd /opt/opencv/opencv/build && make -j$(nproc) && make install && rm -rf /opt/opencv
+RUN cd /opt/opencv/opencv/build && make -j$(nproc) && make install
 
 
 # Stage 2: Build ROS2 workspace
@@ -108,10 +111,11 @@ RUN apt-get update && apt-get install -y \
     ros-humble-ros-core \
     && rm -rf /var/lib/apt/lists/*
 
-
+# Stage 4: Install ROS2 and copy OpenCV from previous stage
 FROM ros-humble-cuda-cudnn AS base
 
 # Copy OpenCV libraries from build stage
+COPY --from=opencv_builder /opt/opencv/opencv_contrib/modules/ /opt/opencv/opencv_contrib/modules/
 COPY --from=opencv_builder /usr/local/lib/python3.10/dist-packages/cv2/ /usr/local/lib/python3.10/dist-packages/cv2/
 COPY --from=opencv_builder /usr/local/lib/libopencv_* /usr/local/lib/
 
