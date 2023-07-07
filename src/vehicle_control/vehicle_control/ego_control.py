@@ -38,7 +38,7 @@ class VehicleControlNode(Node):
         )
 
         # Placeholder for the current vehicle control state
-        self.filter = ExponentialMovingAverageFilter(alpha=0.09)
+        self.filter = ExponentialMovingAverageFilter(alpha=0.12)
 
         # Placeholder for the current vehicle control state
         self.vehicle_control = VehicleControl()
@@ -75,7 +75,7 @@ class VehicleControlNode(Node):
         )
 
         # set timer for updating the vehicle control state
-        self.timer_period = 0.1  # seconds
+        self.timer_period = 0.05  # seconds
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
 
     def bridge_control_callback(self, msg):
