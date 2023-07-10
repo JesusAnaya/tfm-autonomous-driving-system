@@ -1,9 +1,8 @@
 import cv2
 import numpy as np
 
-
-def crop_down(image, top=75, bottom=20):
-    return image[top:-bottom or None, :, :]
+mean = np.array([0.485, 0.456, 0.406])
+std = np.array([0.229, 0.224, 0.225])
 
 
 class InferenceOpenCV(object):
@@ -28,13 +27,17 @@ class InferenceOpenCV(object):
 
     def run_inference(self, image: np.ndarray) -> float:
         # Crop the image
-        rgb_frame = crop_down(image)
+        rgb_frame = image[60:-20, :, :]
 
         # Perform inference
         # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
         # Size parameter is (width, height)
         # Change the image from 255 to 1.0
-        blob = cv2.dnn.blobFromImage(rgb_frame, scalefactor=(1.0 / 255.0), size=(200, 66))
+
+        rgb_frame = cv2.resize(rgb_frame, (200, 66))
+        rgb_frame = np.float32(((rgb_frame / 255.0) - mean) / std)
+
+        blob = cv2.dnn.blobFromImage(rgb_frame, scalefactor=1)
 
         # Set the input to the model
         self.model.setInput(blob)
