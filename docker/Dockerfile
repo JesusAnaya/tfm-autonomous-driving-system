@@ -1,5 +1,5 @@
 # Stage 1: Build and install OpenCV with CUDA
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 AS opencv_builder
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 AS opencv_builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -47,7 +47,7 @@ RUN cd /opt/opencv/opencv/build && \
     -D BUILD_PERF_TESTS=OFF \
     -D BUILD_EXAMPLES=OFF \
     -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv/opencv_contrib/modules \
-    -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-11.8 \
+    -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.1 \
     ../
 
 # Install OpenCV
@@ -77,7 +77,7 @@ RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
     rm -rf /ros2_ws/build /ros2_ws/log
 
 # Stage 3: Install ROS and copy OpenCV from previous stage
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 AS ros-humble-cuda-cudnn
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04 AS ros-humble-cuda-cudnn
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG en_US.UTF-8
