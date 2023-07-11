@@ -1,9 +1,6 @@
 import cv2
 import numpy as np
 
-mean = np.array([0.485, 0.456, 0.406])
-std = np.array([0.229, 0.224, 0.225])
-
 
 class InferenceOpenCV(object):
     def __init__(self, model_onnx_path: str):
@@ -27,17 +24,17 @@ class InferenceOpenCV(object):
 
     def run_inference(self, image: np.ndarray) -> float:
         # Crop the image
-        rgb_frame = image[60:-20, :, :]
+        frame = image[60:-20, :, :]
 
         # Perform inference
-        # Change the shape from (height, width, channels) to (batch_size, channels, height, width)
-        # Size parameter is (width, height)
-        # Change the image from 255 to 1.0
+        # Resize the image to 200x66
+        frame = cv2.resize(frame, (200, 66))
 
-        rgb_frame = cv2.resize(rgb_frame, (200, 66))
-        rgb_frame = np.float32(((rgb_frame / 255.0) - mean) / std)
+        # Normalize the image to a range of -1 to 1
+        frame = np.float32(frame) / 127.5 - 1.0
 
-        blob = cv2.dnn.blobFromImage(rgb_frame, scalefactor=1)
+        # Convert the image from RGB to a blog for input to the model
+        blob = cv2.dnn.blobFromImage(frame, 1)
 
         # Set the input to the model
         self.model.setInput(blob)
@@ -45,8 +42,11 @@ class InferenceOpenCV(object):
         # Run the forward pass
         output = self.model.forward()
 
+        # Get the value from the output
+        value = output.flatten().item()
+
         # Assume output is a single value tensor representing the steering angle
-        steer_angle = float(output[0][0])
+        steer_angle = round(float(value), 4)
 
         return steer_angle
 
