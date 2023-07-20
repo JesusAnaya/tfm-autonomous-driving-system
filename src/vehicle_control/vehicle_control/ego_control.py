@@ -12,7 +12,7 @@ from carla_ros_interfaces.msg import (
     VehicleControl,
     VehicleInfo
 )
-from .filters import ExponentialMovingAverageFilter,MedianFilter
+from .filters import MedianFilter
 from .pid import PIDController
 
 

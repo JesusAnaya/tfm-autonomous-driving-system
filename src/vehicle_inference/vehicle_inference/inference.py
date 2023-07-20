@@ -24,14 +24,17 @@ class InferenceOpenCV(object):
 
     def run_inference(self, image: np.ndarray) -> float:
         # Crop the image
-        frame = image[60:-20, :, :]
+        frame = image[60:-10, 24:-24, :]
+
+        # Convert the image from BGR to YUV
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
 
         # Perform inference
         # Resize the image to 200x66
         frame = cv2.resize(frame, (200, 66))
 
-        # Normalize the image to a range of -1 to 1
-        frame = np.float32(frame) / 127.5 - 1.0
+        # Normalize the image
+        frame = (frame.astype(np.float32) / 127.5) - 1.0
 
         # Convert the image from RGB to a blog for input to the model
         blob = cv2.dnn.blobFromImage(frame, 1)
