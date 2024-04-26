@@ -4,16 +4,18 @@ import numpy as np
 
 class InferenceOpenCV(object):
     def __init__(self, model_onnx_path: str):
-        self.model: cv2.dnn_Net = cv2.dnn.readNetFromONNX(model_onnx_path)
+        self.model: cv2.dnn_Net = cv2.dnn.readNet(model_onnx_path)
         self.warning: bool = False
         self.warning_message: str = ''
 
         # Check if CUDA is available
         if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+            print('CUDA is available.')
             # Use CUDA
             self.model.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
             self.model.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
         else:
+            print('CUDA is not available.')
             # Use CPU
             self.model.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
             self.model.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
@@ -24,20 +26,20 @@ class InferenceOpenCV(object):
 
     def run_inference(self, image: np.ndarray) -> float:
         # Crop the image
-        frame = image[60:-10, 24:-24, :]
-
-        # Convert the image from BGR to YUV
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
+        frame = image.copy()
 
         # Perform inference
         # Resize the image to 200x66
-        frame = cv2.resize(frame, (200, 66))
+        frame = cv2.resize(frame, (224, 224))
 
         # Normalize the image
-        frame = (frame.astype(np.float32) / 127.5) - 1.0
+        frame = frame.astype(np.float32) / 255.0
 
         # Convert the image from RGB to a blog for input to the model
-        blob = cv2.dnn.blobFromImage(frame, 1)
+        blob = cv2.dnn.blobFromImage(frame, 1.0)
+
+        # change (None, 3, 66, 200) to (None, 3, 200, 66)
+        blob = blob.transpose(0, 2, 3, 1)
 
         # Set the input to the model
         self.model.setInput(blob)

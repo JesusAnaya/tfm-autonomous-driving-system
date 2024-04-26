@@ -1,36 +1,26 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import (
-    QoSProfile,
-    QoSDurabilityPolicy,
-    QoSHistoryPolicy,
-    QoSReliabilityPolicy,
-)
-from carla_ros_interfaces.msg import (
-    EgoVehicleControl,
-    EgoVehicleSteeringControl,
-    VehicleControl,
-    VehicleInfo
-)
-from .filters import MedianFilter
-from .pid import PIDController
+from threading import Thread
+import ros_compatibility as roscomp
+from ros_compatibility.node import CompatibleNode
+from ros_compatibility.qos import QoSProfile, DurabilityPolicy
+from carla_msgs.msg import CarlaEgoVehicleControl, CarlaEgoVehicleStatus
+from std_msgs.msg import Bool
+from .filters import MedianFilter, ExponentialMovingAverageFilter, KalmanFilter
+from .pid import PIDController, SteeringPIDController
 
 
 def clip(steering_angle):
     return max(min(steering_angle, 1.0), -1.0)
 
 
-qos = QoSProfile(
-    history=QoSHistoryPolicy.KEEP_LAST,
-    depth=10,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    durability=QoSDurabilityPolicy.VOLATILE,
-)
-
-
-class VehicleControlNode(Node):
+class VehicleControlNode(CompatibleNode):
     def __init__(self):
         super().__init__("vehicle_control_node_node")
+
+        fast_qos = QoSProfile(depth=10)
+        fast_latched_qos = QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+
+        self.role_name = self.get_param("role_name", "ego_vehicle")
+        self.inference_on = False
 
         # PID Controller, max speed = 30km/h
         self.pid_controller = PIDController(
@@ -38,97 +28,114 @@ class VehicleControlNode(Node):
         )
 
         # Placeholder for the current vehicle control state
-        self.filter = MedianFilter(max_size=10)
+        self.filter = ExponentialMovingAverageFilter(alpha=0.08)
+        self.kalmam_filter = KalmanFilter(
+            process_variance=1e-5,
+            measurement_variance=1e-4,
+            estimated_measurement_variance=1e-5
+        )
 
         # Placeholder for the current vehicle control state
-        self.vehicle_control = VehicleControl()
+        self.vehicle_control = CarlaEgoVehicleControl()
         self.vehicle_control.steer = 0.0
         self.vehicle_control.throttle = 0.0
         self.vehicle_control.brake = 0.0
         self.vehicle_control.reverse = False
 
         # Vehicle Info
-        self.vehicle_info = VehicleInfo()
+        self.vehicle_status = CarlaEgoVehicleStatus()
 
-        self.desired_speed = 0.0
+        # Desired speed in km/h
+        self.desired_speed = 5.0
 
-        # Send the current vehicle control state to the bridge
-        self.bridge_control_publisher = self.create_publisher(
-            VehicleControl, "/carla_bridge/ego/control", 10
+        self.vehicle_status_subscriber = self.new_subscription(
+            CarlaEgoVehicleStatus, "/carla/{}/vehicle_status".format(self.role_name),
+            self.vehicle_status_updated, qos_profile=10
         )
 
-        # Subscribe to the vehicle control topic
-        self.bridge_control_subscription = self.create_subscription(
-            VehicleControl, "/carla_bridge/ego/control", self.bridge_control_callback, 10
+        self.vehicle_control_publisher = self.new_publisher(
+            CarlaEgoVehicleControl,
+            "/carla/{}/vehicle_control_cmd_manual".format(self.role_name),
+            qos_profile=fast_qos
         )
 
-        self.egp_info_subscription = self.create_subscription(
-            VehicleInfo, 'carla_bridge/ego/vehicle_info', self.ego_info_callback, 10
+        self.vehicle_inference_subscription = self.new_subscription(
+            CarlaEgoVehicleControl,
+            "/carla/{}/steer_inference".format(self.role_name),
+            self.vehicle_inference_callback, 10
         )
 
-        self.ego_control_subscription = self.create_subscription(
-            EgoVehicleControl, '/av/ego/control', self.ego_control_callback, 10
+        self.turn_on_inference_subscription = self.new_subscription(
+            Bool,
+            "/carla/{}/turn_on_inference".format(self.role_name),
+            self.turn_on_inference_callback, 10
         )
 
-        self.ego_steer_inference_subscription = self.create_subscription(
-            EgoVehicleSteeringControl, "/av/ego/steer_inference", self.steer_inference_callback, 10
+        self.vehicle_control_manual_override_publisher = self.new_publisher(
+            Bool,
+            "/carla/{}/vehicle_control_manual_override".format(self.role_name),
+            qos_profile=fast_latched_qos
         )
 
-        # set timer for updating the vehicle control state
-        self.timer_period = 0.05  # seconds
-        self.timer = self.create_timer(self.timer_period, self.timer_callback)
+    def turn_on_inference_callback(self, msg: Bool):
+        if msg.data == self.inference_on:
+            return
 
-    def bridge_control_callback(self, msg):
-        # Store the current state of the vehicle control
-        self.vehicle_control = msg
+        self.vehicle_control_manual_override_publisher.publish((Bool(data=msg.data)))
 
-    def ego_control_callback(self, msg):
-        self.desired_speed = msg.speed
+        if not msg.data:
+            self.vehicle_control.steer = 0.0
+            self.vehicle_control.throttle = 0.0
+            self.vehicle_control.brake = 0.0
 
-        self.filter.add(msg.steer)
-        self.vehicle_control.steer = self.filter.get_value()
-        self.vehicle_control.brake = msg.brake
-        self.vehicle_control.reverse = msg.reverse
-        self.bridge_control_publisher.publish(self.vehicle_control)
+        self.inference_on = msg.data
 
-    def steer_inference_callback(self, msg):
-        self.filter.add(clip(msg.steer))
-        self.vehicle_control.steer = self.filter.get_value()
+    def vehicle_inference_callback(self, msg):
+        if not self.inference_on:
+            return
+
+        # self.filter.add(clip(msg.steer))
+        # steer = self.filter.get_value()
+
+        steer = self.kalmam_filter.update(msg.steer)
+        self.vehicle_control.steer = clip(steer)
 
         # Public the current vehicle control state
-        self.bridge_control_publisher.publish(self.vehicle_control)
+        self.vehicle_control_publisher.publish(self.vehicle_control)
 
-    def ego_info_callback(self, msg):
-        # Store the current state of the vehicle control
-        self.vehicle_info = msg
+    def vehicle_status_updated(self, msg: CarlaEgoVehicleStatus):
+        if not self.inference_on:
+            return
 
-    def timer_callback(self):
+        self.vehicle_control.steer = msg.control.steer
+        self.vehicle_control.brake = msg.control.brake
+
         # Reduce the speed if the vehicle is turning
-        if abs(self.vehicle_control.steer) > 0.4:
+        if abs(msg.control.steer) > 0.3:
             desired_speed = self.desired_speed / 2.0
         else:
             desired_speed = self.desired_speed
 
         # Update the vehicle control state. Reduce the speed if the vehicle is turning
-        throttle = self.pid_controller.control(float(desired_speed), float(self.vehicle_info.velocity))
+        velocity_kmh = 3.6 * msg.velocity
+        throttle = self.pid_controller.control(float(desired_speed), float(velocity_kmh))
+        self.vehicle_control.throttle = throttle
 
         # Public the current vehicle control state
-        self.vehicle_control.throttle = throttle
-        self.bridge_control_publisher.publish(self.vehicle_control)
+        self.vehicle_control_publisher.publish(self.vehicle_control)
 
 
 def main(args=None):
-    rclpy.init(args=args)
-
-    vehicle_control_node = VehicleControlNode()
-
-    rclpy.spin(vehicle_control_node)
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    vehicle_control_node.destroy_node()
-    rclpy.shutdown()
+    roscomp.init("vehicle_control_node_node", args=args)
+    try:
+        vehicle_control_node = VehicleControlNode()
+        executor = roscomp.executors.MultiThreadedExecutor()
+        executor.add_node(vehicle_control_node)
+        vehicle_control_node.spin()
+    except (IOError, RuntimeError) as e:
+        roscomp.logerr("Error: {}".format(e))
+    finally:
+        roscomp.shutdown()
 
 
 if __name__ == "__main__":

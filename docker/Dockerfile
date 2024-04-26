@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
 
 # Download OpenCV and OpenCV contrib
 RUN mkdir /opt/opencv && cd /opt/opencv && \
-    git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git && \
-    git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv_contrib.git
+    git clone --branch 4.9.0 --depth 1 https://github.com/opencv/opencv.git && \
+    git clone --branch 4.9.0 --depth 1 https://github.com/opencv/opencv_contrib.git
 
 # Create build directory and switch to it
 RUN mkdir /opt/opencv/opencv/build && cd /opt/opencv/opencv/build
@@ -112,12 +112,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 4: Install ROS2 and copy OpenCV from previous stage
+FROM carla_ros_bridge:latest as bridge
 FROM ros-humble-cuda-cudnn AS base
 
 # Copy OpenCV libraries from build stage
 COPY --from=opencv_builder /opt/opencv/opencv_contrib/modules/ /opt/opencv/opencv_contrib/modules/
 COPY --from=opencv_builder /usr/local/lib/python3.10/dist-packages/cv2/ /usr/local/lib/python3.10/dist-packages/cv2/
 COPY --from=opencv_builder /usr/local/lib/libopencv_* /usr/local/lib/
+COPY --from=bridge /opt/carla-ros-bridge/install /opt/carla-ros-bridge/install
 
 RUN apt update && apt install -y \
     libdc1394-25 \

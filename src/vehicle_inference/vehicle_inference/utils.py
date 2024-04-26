@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+import rclpy
 from sensor_msgs.msg import Image
 
 
@@ -16,16 +18,23 @@ def ros_image_to_opencv_rgb(image_msg: Image) -> np.ndarray:
     numpy.ndarray
         The converted OpenCV image.
     """
-    # Convert the ROS Image message to a numpy array
-    image_arr = np.frombuffer(
-        image_msg.data, dtype=np.uint8
-    ).reshape(image_msg.height, image_msg.width, -1)
+    # Convert the CARLA image from BGRA to RGB format
+    if image_msg.encoding == "bgra8":
+        # 'bgra8': 8-bit BGR color image with an alpha channel
+        dtype = np.uint8
+        n_channels = 4
+    else:
+        # Add conditions for other encodings as needed
+        rclpy.logerr("Unsupported encoding: {}".format(image_msg.encoding))
+        return None
 
-    # If the image has a 'bgr8' encoding, convert it to RGB
-    if image_msg.encoding == 'bgr8':
-        image_arr = image_arr[..., ::-1]  # Reverse the color channels
+    # Convert the raw data to a NumPy array with shape (height, width, channels)
+    cv_image = np.ndarray(shape=(image_msg.height, image_msg.width, n_channels),
+                          dtype=dtype, buffer=image_msg.data)
 
-    elif image_msg.encoding != 'rgb8':
-        raise NotImplementedError(f"Encoding '{image_msg.encoding}' is not supported.")
+    # Assuming we want to discard the alpha channel and convert to RGB
+    if image_msg.encoding == "bgra8":
+        # Convert BGRA to BGR, then to RGB
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGRA2RGB)
 
-    return image_arr
+    return cv_image

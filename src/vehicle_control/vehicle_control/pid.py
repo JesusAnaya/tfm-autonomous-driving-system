@@ -31,3 +31,52 @@ class PIDController:
         self.prev_time = current_time
 
         return output
+
+
+class LowPassFilter:
+    def __init__(self, alpha):
+        self.alpha = alpha
+        self.state = None
+
+    def filter(self, value):
+        if self.state is None:
+            self.state = value
+        else:
+            self.state = self.alpha * value + (1 - self.alpha) * self.state
+        return self.state
+
+
+class SteeringPIDController:
+    def __init__(self, kp: float, ki: float, kd: float, max_integral: float, alpha: float):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.max_integral = max_integral
+        self.integral = 0.0
+        self.prev_error = 0.0
+        self.prev_time = time.time()
+        self.error_filter = LowPassFilter(alpha)  # Initialize the filter here for the error
+
+    def control(self, desired_steering: float, current_steering: float) -> float:
+        current_time = time.time()
+        dt = current_time - self.prev_time if self.prev_time else 0
+        raw_error = desired_steering - current_steering
+
+        # Filter the error
+        error_filtered = self.error_filter.filter(raw_error)
+
+        # Integral is calculated based on the filtered error
+        self.integral += error_filtered * dt
+        self.integral = max(min(self.integral, self.max_integral), -self.max_integral)
+
+        # Derivative is calculated based on the filtered error
+        derivative = (error_filtered - self.prev_error) / dt if dt > 0 else 0.0
+
+        # PID output calculation using filtered error
+        output = self.kp * error_filtered + self.ki * self.integral + self.kd * derivative
+        output = max(min(output, 1.0), -1.0)
+
+        self.prev_error = error_filtered
+        self.prev_time = current_time
+
+        return output

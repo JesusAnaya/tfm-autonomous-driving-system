@@ -1,44 +1,41 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import (
-    QoSProfile,
-    QoSDurabilityPolicy,
-    QoSHistoryPolicy,
-    QoSReliabilityPolicy,
-)
+from threading import Thread
+import ros_compatibility as roscomp
+from ros_compatibility.node import CompatibleNode
+from ros_compatibility.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
-from carla_ros_interfaces.msg import EgoVehicleSteeringControl
+from carla_msgs.msg import CarlaEgoVehicleControl
 from .inference import InferenceOpenCV
 from .utils import ros_image_to_opencv_rgb
 
-# Create a custom QoS profile
-qos = QoSProfile(
-    history=QoSHistoryPolicy.KEEP_LAST,
-    depth=10,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    durability=QoSDurabilityPolicy.VOLATILE,
-)
 
-
-class VehicleInferenceNode(Node):
+class VehicleInferenceNode(CompatibleNode):
     def __init__(self):
         super().__init__("vehicle_inference_node")
+        fast_qos = QoSProfile(depth=10)
+        self.role_name = self.get_param("role_name", "ego_vehicle")
 
         # Action inference
         self.inference_on = False
         self.inference = InferenceOpenCV("/models/drive_net_model.onnx")
 
-        self.camera_center_subscription = self.create_subscription(
-            Image, "/carla_bridge/ego/camera_center", self.image_callback, qos_profile=qos
+        self.camera_center_subscription = self.new_subscription(
+            Image,
+            "/carla/{}/rgb_center/image".format(self.role_name),
+            self.image_callback,
+            qos_profile=fast_qos
         )
 
-        self.turn_on_inference_subscription = self.create_subscription(
-            Bool, "/av/ego/turn_on_inference", self.turn_on_inference_callback, 10
+        self.turn_on_inference_subscription = self.new_subscription(
+            Bool,
+            "/carla/{}/turn_on_inference".format(self.role_name),
+            self.turn_on_inference_callback, 10
         )
 
-        self.ego_vehicle_steering_publisher = self.create_publisher(
-            EgoVehicleSteeringControl, "/av/ego/steer_inference", 10
+        self.ego_vehicle_steer_inference_publisher = self.new_publisher(
+            CarlaEgoVehicleControl,
+            "/carla/{}/steer_inference".format(self.role_name),
+            10
         )
 
     def turn_on_inference_callback(self, msg: Bool):
@@ -62,23 +59,22 @@ class VehicleInferenceNode(Node):
             self.get_logger().warn(self.inference.get_warning())
 
         # Publish the control command
-        ego_vehicle_steering_control = EgoVehicleSteeringControl()
-        ego_vehicle_steering_control.steer = steer_angle
-        self.ego_vehicle_steering_publisher.publish(ego_vehicle_steering_control)
+        ego_vehicle_control = CarlaEgoVehicleControl()
+        ego_vehicle_control.steer = min(max(steer_angle, -1.0), 1.0)
+        self.ego_vehicle_steer_inference_publisher.publish(ego_vehicle_control)
 
 
 def main(args=None):
-    rclpy.init(args=args)
-
-    vehicle_inference_node = VehicleInferenceNode()
-
-    rclpy.spin(vehicle_inference_node)
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    vehicle_inference_node.destroy_node()
-    rclpy.shutdown()
+    roscomp.init("vehicle_control_node_node", args=args)
+    try:
+        vehicle_inference_node = VehicleInferenceNode()
+        executor = roscomp.executors.MultiThreadedExecutor()
+        executor.add_node(vehicle_inference_node)
+        vehicle_inference_node.spin()
+    except (IOError, RuntimeError) as e:
+        roscomp.logerr("Error: {}".format(e))
+    finally:
+        roscomp.shutdown()
 
 
 if __name__ == "__main__":
